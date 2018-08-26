@@ -1,0 +1,200 @@
+{
+	"info": {
+		"_postman_id": "0a2caff7-317f-45f2-9b82-6aae3dd0d574",
+		"name": "item-component",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "item - get-all",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "http://localhost:4000/sku/list",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"sku",
+						"list"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "item - get-by-id",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "http://localhost:4000/rest/item/itemId/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"rest",
+						"item",
+						"itemId",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "item-get-by-name",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "http://localhost:4000/rest/item/itemName/iPhone 7 32GB",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"rest",
+						"item",
+						"itemName",
+						"iPhone 7 32GB"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "item-save",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \n    \"name\": \"WD-SSD-500GB\",\n    \"description\": \"This is WD 500GB SSD\"\n  \n}"
+				},
+				"url": {
+					"raw": "http://localhost:4000/rest/item/save",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"rest",
+						"item",
+						"save"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "item-save-error",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"name\": \"\"\n  \n}"
+				},
+				"url": {
+					"raw": "http://localhost:4000/rest/item/save",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"rest",
+						"item",
+						"save"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "item-update",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"id\": 4,\n    \"name\": \"WD-SSD-1TB\",\n    \"description\": \"TThis is WD 1TB SSD\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:4000/rest/item/update",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"rest",
+						"item",
+						"update"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "item-delete",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "http://localhost:4000/rest/item/4",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "4000",
+					"path": [
+						"rest",
+						"item",
+						"4"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
