@@ -1,0 +1,36 @@
+
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>Add Item</title>
+<link type="text/css" href="/css/bootstrap.css" rel="stylesheet" />
+</head>
+<body>
+	<h2>Add new item</h2>
+	<form action="/item/save" method="post">
+		<table class="table table-bordered">
+			<tbody>
+				<tr>
+					<th>Item Name</th>
+					<td><input type="text" name="itemName" required="required" value="${item.itemName}" /></td>
+				</tr>
+				<tr>
+					<th>Description</th>
+					<td><textarea rows="4" cols="50" name="description"
+							required="required"></textarea></td>
+				</tr>
+				<tr>
+					<td colspan="2"><input type="submit" value="Add Item"
+						class="btn btn-success" /></td>
+				</tr>
+			</tbody>
+		</table>
+	</form>
+	<a href="/rule/index" class="btn btn-success">Back</a>
+
+	<script type="application/javascript" src="js/jquery.js"></script>
+	<script type="application/javascript" src="js/bootstrap.js"></script>
+
+
+</body>
+</html>

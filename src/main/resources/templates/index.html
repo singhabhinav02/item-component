@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>Items</title>
+<link type="text/css" href="/css/bootstrap.css" rel="stylesheet" />
+</head>
+<body>
+	<h2>List of Items</h2>
+	<table class="table table-bordered">
+		<tr>
+			<th>Id</th>
+			<th>Item Name</th>
+			<th>Description</th>
+			<th>Action</th>
+		</tr>
+
+		<tbody>
+			<tr th:each="item : ${items}">
+				<td th:text="${item.id}">A Smoke Test</td>
+				<td th:text="${item.itemName}">A Smoke Test</td>
+				<td th:text="${item.description}">A Smoke Test</td>
+				<td><a th:href="@{/item/edit/{item.id}}" class="btn btn-warning">Edit</a></td>
+				
+			
+				
+				
+			</tr>
+		</tbody>
+
+	</table>
+	<a href="/item/create" class="btn btn-success">Add Item</a>
+	<script type="application/javascript" src="js/jquery.js"></script>
+	<script type="application/javascript" src="js/bootstrap.js"></script>
+</body>
+</html>

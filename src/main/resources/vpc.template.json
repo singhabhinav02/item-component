@@ -1,0 +1,493 @@
+{
+  "Description": "Stack containg all VPC components",
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Mappings": {
+    "VpcCidrs": {
+      "us-east-1": {
+        "vpc": "10.#@#.0.0/16", "vpcdns": "10.#@#.0.2", "pubsubnet1": "10.#@#.1.0/24","privsubnet1": "10.#@#.11.0/24","pubsubnet2": "10.#@#.2.0/24","privsubnet2": "10.#@#.12.0/24",
+        "avlZone1":"us-east-1a","avlZone2":"us-east-1b"
+      },
+      "us-west-1": {
+        "vpc": "10.#@#.0.0/16", "vpcdns": "10.#@#.0.2", "pubsubnet1": "10.#@#.1.0/24","privsubnet1": "10.#@#.11.0/24","pubsubnet2": "10.#@#.2.0/24","privsubnet2": "10.#@#.12.0/24",
+        "avlZone1":"us-west-1a","avlZone2":"us-west-1b"
+      },
+      "us-west-2": {
+        "vpc": "10.#@#.0.0/16", "vpcdns": "10.#@#.0.2", "pubsubnet1": "10.#@#.1.0/24","privsubnet1": "10.#@#.11.0/24","pubsubnet2": "10.#@#.2.0/24","privsubnet2": "10.#@#.12.0/24",
+        "avlZone1":"us-west-2a","avlZone2":"us-west-2b"
+      }
+    }
+  },
+
+  "Parameters": {
+    "CreatorName": {
+      "Type": "String",
+      "Description": "Your Name. All resources created by you can be searched using this",
+      "Default": "cpadmin"
+    },
+    "AWSRegion": {
+      "Description": "Region to Create ECS Instance. Must select a US region as of now",
+      "Type": "String",
+      "AllowedValues": ["us-west-2","us-west-1","us-east-1"]
+    },
+    "ParentStackName": {
+      "Description": "Name of the parent stack which will be using this VPC",
+      "Type": "String",
+      "Default": "localdev"
+    },
+	"RDSStackName": {
+	  "Description": "Name of RDS Stack. You must have created it earlier. If not, exit and create it and come back.",
+      "Type": "String"
+	}
+  },
+
+  "Resources" : {
+
+    "RDSStackInfo": {
+      "Type": "Custom::RDSStackInfo",
+      "Properties": {
+        "ServiceToken": { "Fn::GetAtt" : ["LookupStackOutputs", "Arn"] },
+        "StackName": {
+          "Ref": "RDSStackName"
+        }
+      }
+    },
+    "LookupStackOutputs": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": { "Fn::GetAtt" : ["LambdaExecutionRole", "Arn"] },
+        "Code": {
+          "ZipFile":  { "Fn::Join": ["\n", [
+            "var response = require('cfn-response');",
+            "exports.handler = function(event, context) {",
+            "    console.log('REQUEST RECEIVED:\\n', JSON.stringify(event));",
+            "    if (event.RequestType == 'Delete') {",
+            "        response.send(event, context, response.SUCCESS);",
+            "        return;",
+            "    }",
+            "    var stackName = event.ResourceProperties.StackName;",
+            "    var responseData = {};",
+            "    if (stackName) {",
+            "        var aws = require('aws-sdk');",
+            "        var cfn = new aws.CloudFormation();",
+            "        cfn.describeStacks({StackName: stackName}, function(err, data) {",
+            "            if (err) {",
+            "                responseData = {Error: 'DescribeStacks call failed'};",
+            "                console.log(responseData.Error + ':\\n', err);",
+            "                response.send(event, context, response.FAILED, responseData);",
+            "            }",
+            "            else {",
+            "               data.Stacks[0].Outputs.forEach(function(output) {",
+            "                   responseData[output.OutputKey] = output.OutputValue;",
+            "               });",
+            "               response.send(event, context, response.SUCCESS, responseData);",
+            "            }",
+            "        });",
+            "    } else {",
+            "        responseData = {Error: 'Stack names not specified'};",
+            "        console.log(responseData.Error);",
+            "        response.send(event, context, response.FAILED, responseData);",
+            "    }",
+            "};"
+          ]]}
+        },
+        "Runtime": "nodejs",
+        "Timeout": "30"
+      }
+    },
+    "LambdaExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+              "Effect": "Allow",
+              "Principal": {"Service": ["lambda.amazonaws.com"]},
+              "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "root",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                { "Effect": "Allow", "Action": ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"], "Resource": "arn:aws:logs:*:*:*" },
+                { "Effect": "Allow", "Action": ["cloudformation:DescribeStacks"], "Resource": "*" }
+              ]
+            }
+          }
+        ]
+      }
+    },
+
+
+    "Vpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": {"Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"vpc"]},
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true",
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["vpc-",{"Ref": "ParentStackName"}]]}}
+        ]
+      }
+    },
+	"RDSVPCPeeringConnection": {
+            "Type": "AWS::EC2::VPCPeeringConnection",
+            "Properties": {
+                "VpcId": {"Ref": "Vpc"},
+                "PeerVpcId": { "Fn::GetAtt": [ "RDSStackInfo", "Vpc" ] }
+            }
+    },
+    "PubSubnetAz1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": { "Ref": "Vpc" },
+        "CidrBlock": { "Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"pubsubnet1"]},
+        "AvailabilityZone": {"Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"avlZone1"]},
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["public-subnet1-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}},
+          {"Key": "Network","Value": "Public Zone 1"}
+        ]
+      }
+    },
+    "PubSubnetAz2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": { "Ref": "Vpc" },
+        "CidrBlock": { "Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"pubsubnet2"]},
+        "AvailabilityZone": {"Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"avlZone2"]},
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["public-subnet2-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "Network","Value": "Public Zone 2"}
+        ]
+      }
+    },
+    "PrivSubnetAz1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": { "Ref": "Vpc" },
+        "CidrBlock": { "Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"privsubnet1"]},
+        "AvailabilityZone": {"Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"avlZone1"]},
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["private-subnet1-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "Network","Value": "Private Zone 1"}
+        ]
+      }
+    },
+    "PrivSubnetAz2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": { "Ref": "Vpc" },
+        "CidrBlock": { "Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"privsubnet2"]},
+        "AvailabilityZone": {"Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"avlZone2"]},
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["private-subnet2-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "Network","Value": "Private Zone 2"}
+        ]
+      }
+    },
+    "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+      "Tags": [
+        {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+        {"Key": "Name","Value": {"Fn::Join":["",["internet-gateway-",{"Ref": "ParentStackName"}]]}},
+        {"Key": "VPC","Value": {"Ref": "Vpc"}}
+      ]
+      }
+    },
+    "AttachGateway": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {"Ref": "Vpc"},
+        "InternetGatewayId": {"Ref": "InternetGateway"}
+      }
+    },
+    "RouteViaIgw": {
+      "Type": "AWS::EC2::RouteTable",
+      "DependsOn" : "InternetGateway",
+      "Properties": {
+        "VpcId": {"Ref": "Vpc"},
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["route-table-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}}
+        ]
+      }
+    },
+    "PublicRouteViaIgw": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn" : "InternetGateway",
+      "Properties": {
+        "RouteTableId": {"Ref": "RouteViaIgw"},
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {"Ref": "InternetGateway"}
+      }
+    },
+	"StackToRDSPeeredVPCRoute": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn" : ["RDSVPCPeeringConnection","InternetGateway"],
+      "Properties": {
+        "RouteTableId": {"Ref": "RouteViaIgw"},
+        "DestinationCidrBlock": { "Fn::GetAtt": [ "RDSStackInfo", "RDSVpcCIDR" ] },
+        "VpcPeeringConnectionId": {"Ref": "RDSVPCPeeringConnection"}
+      }
+    },
+	"DBToStackPeeredVPCRoute": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn" : ["StackToRDSPeeredVPCRoute"],
+      "Properties": {
+        "RouteTableId": { "Fn::GetAtt": [ "RDSStackInfo", "RouteTable" ] },
+        "DestinationCidrBlock": {"Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"vpc"]},
+        "VpcPeeringConnectionId": {"Ref": "RDSVPCPeeringConnection"}
+      }
+    },
+    "RDSInboundFromECSInstances": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "DependsOn" : ["RDSVPCPeeringConnection","PrivInstanceSecurityGroup"],
+      "Properties":{
+        "IpProtocol": "tcp",
+        "FromPort": { "Fn::GetAtt": [ "RDSStackInfo", "RDSPort" ] },
+        "ToPort": { "Fn::GetAtt": [ "RDSStackInfo", "RDSPort" ] },
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "PrivInstanceSecurityGroup", "GroupId" ] },
+        "GroupId": { "Fn::GetAtt": [ "RDSStackInfo", "SecurityGroup" ] }
+      }
+    },
+    "RDSInboundFromEdgeInstances": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "DependsOn" : ["RDSVPCPeeringConnection","EdgeInstanceSecurityGroup"],
+      "Properties":{
+        "IpProtocol": "tcp",
+        "FromPort": { "Fn::GetAtt": [ "RDSStackInfo", "RDSPort" ] },
+        "ToPort": { "Fn::GetAtt": [ "RDSStackInfo", "RDSPort" ] },
+        "SourceSecurityGroupId": { "Fn::GetAtt": [ "EdgeInstanceSecurityGroup", "GroupId" ] },
+        "GroupId": { "Fn::GetAtt": [ "RDSStackInfo", "SecurityGroup" ] }
+      }
+    },
+    "PubSubnet1RouteTableAssociation" : {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {"Ref": "PubSubnetAz1"},
+        "RouteTableId": {"Ref": "RouteViaIgw"}
+      }
+    },
+    "PubSubnet2RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {"Ref": "PubSubnetAz2"},
+        "RouteTableId": {"Ref": "RouteViaIgw"}
+      }
+    },
+    "PrivSubnet1RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {"Ref": "PrivSubnetAz1"},
+        "RouteTableId": {"Ref": "RouteViaIgw"}
+      }
+    },
+    "PrivSubnet2RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {"Ref": "PrivSubnetAz2"},
+        "RouteTableId": {"Ref": "RouteViaIgw"}
+      }
+    },
+    "PrivInstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Private Allowed Ports",
+        "VpcId": {"Ref": "Vpc"},
+        "SecurityGroupIngress":[
+           {"IpProtocol": "tcp","FromPort": "32768","ToPort": "65535", "SourceSecurityGroupId":{"Ref": "AllInstancesSecurityGroup"}},
+           {"IpProtocol": "tcp","FromPort": "8081","ToPort": "8081", "SourceSecurityGroupId":{"Ref": "AllInstancesSecurityGroup"}},
+           {"IpProtocol": "tcp","FromPort": "6739","ToPort": "6739", "SourceSecurityGroupId":{"Ref": "AllInstancesSecurityGroup"}},
+           {"IpProtocol": "tcp","FromPort": "8761","ToPort": "8761", "SourceSecurityGroupId":{"Ref": "AllInstancesSecurityGroup"}},
+           {"IpProtocol": "tcp","FromPort": "8082","ToPort": "8082", "SourceSecurityGroupId":{"Ref": "AllInstancesSecurityGroup"}}
+          ],
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["sg-priv-instance-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}}
+        ]
+      }
+    },
+    "AllInstancesSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Open Ports",
+        "VpcId": {"Ref": "Vpc"},
+        "SecurityGroupIngress":[
+           {"IpProtocol": "tcp","FromPort": "22", "ToPort": "22","CidrIp": "0.0.0.0/0"},
+           {"IpProtocol": "tcp","FromPort": "80", "ToPort": "80","CidrIp": "0.0.0.0/0"},
+           {"IpProtocol": "icmp","FromPort": "-1", "ToPort": "-1","CidrIp": "0.0.0.0/0"}
+          ],
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["sg-all-instance-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}}
+        ]
+      }
+    },
+    "PubEdgeElbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Pubic Edge ELB Security Group",
+        "VpcId": {"Ref": "Vpc"},
+        "SecurityGroupIngress":[
+          {"IpProtocol": "tcp","FromPort": "443","ToPort": "8990","CidrIp": "0.0.0.0/0"},
+          {"IpProtocol": "tcp","FromPort": "443","ToPort": "10191","CidrIp": "0.0.0.0/0"}
+        ],
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["sg-edge-elb-pub-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}}
+        ]
+      }
+    },
+    "EdgeInstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Private Edge Instances Security Group",
+        "SecurityGroupIngress":[
+            {"IpProtocol": "tcp","FromPort": "8990","ToPort": "8990", "SourceSecurityGroupId": {"Ref": "PubEdgeElbSecurityGroup"}},
+            {"IpProtocol": "tcp","FromPort": "10191","ToPort": "10191", "SourceSecurityGroupId": {"Ref": "PubEdgeElbSecurityGroup"}}
+          ],
+        "VpcId": {"Ref": "Vpc"},
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": "sg-edge-instances"},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}}
+        ]
+      }
+    },
+    "PubInstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Public Allowed Ports",
+        "VpcId": {"Ref": "Vpc"},
+        "SecurityGroupIngress":[
+          {"IpProtocol": "tcp","FromPort": "80","ToPort": "80","SourceSecurityGroupId": {"Ref": "PubElbSecurityGroup"}},
+          {"IpProtocol": "tcp","FromPort": "443","ToPort": "443","SourceSecurityGroupId": {"Ref": "PubElbSecurityGroup"}},
+          {"IpProtocol": "tcp","FromPort": "22", "ToPort": "22","CidrIp": "0.0.0.0/0"}
+        ],
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["sg-pub-instance-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}}
+        ]
+      }
+    },
+    "PubElbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Pubic ELB Security Group",
+        "VpcId": {"Ref": "Vpc"},
+        "SecurityGroupIngress":[
+          {"IpProtocol": "tcp","FromPort": "80","ToPort": "80","CidrIp": "0.0.0.0/0"},
+          {"IpProtocol": "tcp","FromPort": "443","ToPort": "443","CidrIp": "0.0.0.0/0"}
+        ],
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["sg-elb-pub-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}}
+        ]
+      }
+    },
+    "EfsInstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "EFS Instance Security Group",
+        "VpcId": {"Ref": "Vpc"},
+        "Tags": [
+          {"Key": "Creator","Value": {"Ref": "CreatorName"}},
+          {"Key": "Name","Value": {"Fn::Join":["",["sg-efs-instance-",{"Ref": "ParentStackName"}]]}},
+          {"Key": "VPC","Value": {"Ref": "Vpc"}}
+        ]
+      }
+    }
+  },
+
+  "Outputs": {
+    "VPCStackName": {
+      "Description" : "The name of the VPC stack",
+      "Value" : {"Ref": "AWS::StackName"}
+    },
+    "Vpc" : {
+      "Description" : "The VPC used by the Cloud Platform",
+      "Value" : {"Ref": "Vpc"}
+    },
+    "VpcDns" : {
+      "Description" : "The VPC Amazon-provided DNS ",
+      "Value" : { "Fn::FindInMap": ["VpcCidrs",{"Ref": "AWSRegion"},"vpcdns"]}
+    },
+    "PrivSubnetAz1" : {
+	    "Description" : "The Private Subnet for Availability Zone 1",
+   	  "Value" : {"Ref": "PrivSubnetAz1" }
+    },
+    "PrivSubnetAz2" : {
+	    "Description" : "The Private Subnet for Availability Zone 2",
+   	  "Value" : {"Ref": "PrivSubnetAz2" }
+    },
+    "InternetGateway" : {
+	  "Description" : "The internet gateway",
+   	  "Value" : {"Ref": "InternetGateway" }
+    },
+    "GatewayAttachment" : {
+	  "Description" : "The VPC internet gateway attachment",
+   	  "Value" : {"Ref": "InternetGateway" }
+    },
+    "PubSubnetAz1" : {
+      "Description" : "The Public Subnet for Availability Zone 1",
+      "Value" : {"Ref": "PubSubnetAz1" }
+    },
+    "PubSubnetAz2" : {
+      "Description" : "The Public Subnet for Availability Zone 2",
+      "Value" : {"Ref": "PubSubnetAz2" }
+    },
+    "PrivInstanceSecurityGroup": {
+      "Description": "Security group for private instances",
+      "Value" : {"Ref": "PrivInstanceSecurityGroup"}
+    },
+    "EdgeInstanceSecurityGroup" : {
+      "Description": "The Edge Elastic Load Balancer DNS Name",
+      "Value": { "Ref": "EdgeInstanceSecurityGroup" }
+    },
+    "PubEdgeElbSecurityGroup" : {
+      "Description": "The Edge Elastic Load Balancer DNS Name",
+      "Value": { "Ref": "PubEdgeElbSecurityGroup" }
+    },
+    "AllInstancesSecurityGroup": {
+      "Description": "Common security group for all instances",
+      "Value" : {"Ref": "AllInstancesSecurityGroup"}
+    },
+    "PubInstanceSecurityGroup": {
+      "Description": "Security group for public facing instances",
+      "Value" : {"Ref": "PubInstanceSecurityGroup"}
+    },
+    "PubElbSecurityGroup": {
+      "Description": "Security group for public facing ELBs",
+      "Value" : {"Ref": "PubElbSecurityGroup"}
+    },
+    "EfsInstanceSecurityGroup": {
+      "Description": "Security Group for EFS Instances",
+      "Value": {"Ref": "EfsInstanceSecurityGroup"}
+    },
+	"RDSVPCPeeringConnectionID":{
+		"Description": "VPC peering ID ",
+		"Value" : {"Ref": "RDSVPCPeeringConnection"}
+	}
+  }
+}
