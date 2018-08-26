@@ -8,9 +8,6 @@ import org.springframework.cloud.netflix.feign.EnableFeignClients;
 
 /**
  * Spring boot application class
- * 
- * @author pxk3659
- *
  */
 @SpringBootApplication
 //@EnableEurekaClient
@@ -18,16 +15,16 @@ import org.springframework.cloud.netflix.feign.EnableFeignClients;
 //@EnableCircuitBreaker
 public class ItemApplication {
 
-	// extends SpringBootServletInitializer {
+  // extends SpringBootServletInitializer {
 
-	public static void main(String[] args) {
-		SpringApplication.run(ItemApplication.class, args);
-	}
+  public static void main(String[] args) {
+    SpringApplication.run(ItemApplication.class, args);
+  }
 
-	// @Override
-	// protected SpringApplicationBuilder configure(SpringApplicationBuilder
-	// builder) {
-	// return builder.sources(RuleApplication.class);
-	// }
+  // @Override
+  // protected SpringApplicationBuilder configure(SpringApplicationBuilder
+  // builder) {
+  // return builder.sources(RuleApplication.class);
+  // }
 
 }
